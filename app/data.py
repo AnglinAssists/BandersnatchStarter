@@ -1,101 +1,177 @@
 from os import getenv
-import random
 from pymongo import MongoClient
 from MonsterLab import Monster
 from dotenv import load_dotenv
 import pandas as pd
 from certifi import where
 
-client = MongoClient(getenv("DB_URL"), tlsCAFile=where())
-db = client['Database']
-monsters_collection = db['monsters']
-
 
 class Database:
-    ''' The Database allows us to generate and
-      manipulate random monster data'''
-    def __init__(self,collection ):
-        # Load environmental variables
-        load_dotenv()
+    """
+    A Database class to manage a MongoDB database connection and provide CRUD functionality
+    on a specific collection.
 
-        # Create a connection to the MongoDB server
-        self.client = client
+    CRUD Operations:
+        - Create: Insert documents into the database (e.g., `create`, `seed` methods).
+        - Read: Read documents from the database (e.g., `read_all`, `read_one`, `dataframe` methods).
+        - Update: Update existing documents in the collection (e.g., `update_one` method).
+        - Delete: Remove documents from the collection (e.g., `delete_one`, `reset` methods).
+    """
 
-        # Select the database
-        self.db = self.client['Database']
+    load_dotenv()
+    database = MongoClient(getenv("DB_URL"), tlsCAFile=where())["Database"]
 
-        # Select the collection
-        self.collection = self.db['Monsters']
+    def __init__(self, collection: str):
+        """
+        Initialize the database object with a specific collection name.
 
+        Args:
+            collection (str): The name of the collection to work with in the database.
+        """
+        self.collection = self.database[collection]
 
-    def reset(self):
-        '''The reset function is called after init in order to
-        drop all previous data before adding more'''
-        self.collection.drop()
+    # Create Functionality
+    def create(self, document: dict) -> bool:
+        """
+        Insert a single document into the collection.
 
+        Args:
+            document (dict): The document to insert into the collection.
 
-    def seed(self, num_docs):
-        '''The seed function is used to genreate a specified
-        number of documents into our collection'''
-        monsters = [self.get_random_monster_name() for _ in range(num_docs)]
-        self.collection.insert_many(monsters)
+        Returns:
+            bool: True if the insertion was acknowledged, False otherwise.
+        """
+        result = self.collection.insert_one(document)
+        return result.acknowledged
 
+    def seed(self, amount: int) -> bool:
+        """
+        Bulk-insert multiple randomly generated Monster objects into the collection.
 
-    def count(self):
-        '''The Count function returns a count of the documents
-        we just generated to ensure accuracy'''
+        Args:
+            amount (int): The number of Monster objects to insert.
+
+        Returns:
+            bool: True if the insertion was acknowledged, False otherwise.
+        """
+        monsters = [Monster().to_dict() for _ in range(1, amount + 1)]
+        result = self.collection.insert_many(monsters)
+        return result.acknowledged
+
+    # Read Functionality
+    def read_all(self) -> list:
+        """
+        Retrieve all documents from the collection.
+
+        Returns:
+            list: A list of all documents in the collection as dictionaries.
+        """
+        return list(self.collection.find({}, {"_id": 0}))
+
+    def read_one(self, query: dict) -> dict:
+        """
+        Retrieve a single document from the collection that matches the query.
+
+        Args:
+            query (dict): The query used to find a document.
+
+        Returns:
+            dict: A dictionary representing the matching document, or None if no match is found.
+        """
+        return self.collection.find_one(query, {"_id": 0})
+
+    def dataframe(self) -> pd.DataFrame:
+        """
+        Retrieve all documents and their attributes from the collection as a pandas DataFrame.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing all the document data.
+        """
+        data = self.read_all()
+        return pd.DataFrame(data)
+
+    # Update Functionality
+    def update_one(self, query: dict, update_values: dict) -> bool:
+        """
+        Update specific fields in a single document that matches the query.
+
+        Args:
+            query (dict): The query to match the document to update.
+            update_values (dict): A dictionary of fields to update, e.g., {"$set": {"field_name": "new_value"}}.
+
+        Returns:
+            bool: True if the update was acknowledged, False otherwise.
+        """
+        result = self.collection.update_one(query, update_values)
+        return result.acknowledged
+
+    # Delete Functionality
+    def delete_one(self, query: dict) -> bool:
+        """
+        Delete a single document from the collection that matches the query.
+
+        Args:
+            query (dict): The query to match the document to delete.
+
+        Returns:
+            bool: True if the deletion was acknowledged, False otherwise.
+        """
+        result = self.collection.delete_one(query)
+        return result.acknowledged
+
+    def reset(self) -> bool:
+        """
+        Delete all documents from the collection.
+
+        Returns:
+            bool: True if the deletion was acknowledged, False otherwise.
+        """
+        result = self.collection.delete_many({})
+        return result.acknowledged
+
+    # Other Utility Functions
+    def count(self) -> int:
+        """
+        Count the number of documents in the collection.
+
+        Returns:
+            int: The total number of documents in the collection.
+        """
         return self.collection.count_documents({})
 
+    def html_table(self) -> str:
+        """
+        Convert the collection's documents into an HTML table.
 
-    def dataframe(self):
-        '''The dataframe function returns a dataframe containing our new collection'''
-        return pd.DataFrame(list(self.collection.find()))
+        Uses the `dataframe` method to retrieve data and convert it into an HTML table.
 
-
-    def html_table(self):
-        '''The html_table function converts our new dataframe into HTML format'''
-        df = self.dataframe()
-        if df.empty:
-            return None
-        return df.to_html()
+        Returns:
+            str: An HTML string representation of the collection data.
+        """
+        return self.dataframe().to_html()
 
 
-    def get_random_monster_name(self):
-        '''The get_random_monster_name function ensures that
-        names are creates with two words each'''
-        monster = Monster()  # Create a new monster instance
-        name = monster.name
-        if ' ' not in name:  # Check if the name has a space
-            suffixes = ['Spirit', 'Ghost', 'Entity', 'Being']  # List of suffixes
-            name += ' ' + random.choice(suffixes)  # Add a suffix
-        return {'Name': name}  # Return a single dictionary
-
-    def read_one(self, query: Dict) -> Dict:
-        return self.collection.find_one(query, {"_id": False})
-
-    def update_one(self, query: Dict, update: Dict) -> bool:
-        return self.collection.update_one(query, {"$set": update}).acknowledged
-
-    def delete_one(self, query: Dict) -> bool:
-        return self.collection.delete_one(query).acknowledged
-
-    def create_many(self, records: Iterable[Dict]) -> bool:
-        return self.collection.insert_many(records).acknowledged
-
-    def read_many(self, query: Dict) -> Iterator[Dict]:
-        return self.collection.find(query, {"_id": False})
-
-    def update_many(self, query: Dict, update: Dict) -> bool:
-        return self.collection.update_many(query, {"$set": update}).acknowledged
-
-    def delete_many(self, query: Dict) -> bool:
-        return self.collection.delete_many(query).acknowledged
-
-# This is an example of how to use the bandersnatch file
 if __name__ == '__main__':
-    db_database = database(monsters_collection)
-    db_database.reset()  # Remove previous data
-    db_database.seed(1000)  # Insert 1000 random monsters
-    print(f"{db_database.count()} monsters have been inserted.")
-    print(db_database.dataframe())  # Display the DataFrame
-    print(db_database.html_table())  # Display the HTML table
+    db = Database("monsters")
+    db.reset()
+    db.seed(1000)
+
+    # Example usages of CRUD operations:
+    print(f"Document count: {db.count()}")
+    print("Inserting a new monster...")
+    new_monster = {"name": "Example Monster", "type": "Fire", "strength": 85}
+    db.create(new_monster)
+
+    print("Reading a specific document...")
+    print(db.read_one({"name": "Example Monster"}))
+
+    print("Updating the monster's strength...")
+    db.update_one({"name": "Example Monster"}, {"$set": {"strength": 95}})
+    print(db.read_one({"name": "Example Monster"}))
+
+    print("Deleting the monster...")
+    db.delete_one({"name": "Example Monster"})
+    print(f"Document count after deletion: {db.count()}")
+
+    print("HTML Table of all data:")
+    print(db.html_table())
