@@ -157,21 +157,23 @@ if __name__ == '__main__':
     db.seed(1000)
 
     # Example usages of CRUD operations:
-    print(f"Document count: {db.count()}")
+    print(db.count())
     print("Inserting a new monster...")
-    new_monster = {"name": "Example Monster", "type": "Fire", "strength": 85}
+    new_monster = {"name": "FaKE Monster", "type": "Fire", "strength": 85}
     db.create(new_monster)
 
     print("Reading a specific document...")
-    print(db.read_one({"name": "Example Monster"}))
+    print(db.read_one({"name": "FaKE Monster"}))
 
     print("Updating the monster's strength...")
-    db.update_one({"name": "Example Monster"}, {"$set": {"strength": 95}})
-    print(db.read_one({"name": "Example Monster"}))
+    db.update_one({"name": "FaKE Monster"}, {"$set": {"strength": 95}})
+    print(db.read_one({"name": "FaKE Monster"}))
 
     print("Deleting the monster...")
-    db.delete_one({"name": "Example Monster"})
+    db.delete_one({"name": "FaKE Monster"})
     print(f"Document count after deletion: {db.count()}")
 
     print("HTML Table of all data:")
     print(db.html_table())
+    print(db.dataframe())
+
